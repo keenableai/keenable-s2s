@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import logging
+import threading
+import time
 from abc import ABC, abstractmethod
 from collections.abc import Iterator
 from typing import Any, Optional, cast
@@ -153,6 +155,7 @@ class BaseOpenAICompatibleHandler(BaseHandler[LLMIn, LLMOut], ABC):
         keenable_web_search: bool = False,
         keenable_api_key: Optional[str] = None,
         tool_call_max_rounds: int = 3,
+        connection_keepalive_ping_s: float = 25.0,
         **_kwargs: Any,
     ) -> None:
         self.cancel_scope = cancel_scope
@@ -171,10 +174,41 @@ class BaseOpenAICompatibleHandler(BaseHandler[LLMIn, LLMOut], ABC):
         self.user_role = user_role
         self.server_tools = KeenableWebTools(api_key=keenable_api_key) if keenable_web_search else None
         self.tool_call_max_rounds = max(1, tool_call_max_rounds)
-        self.client = OpenAI(api_key=api_key, base_url=base_url)
+        # A long-keepalive pool + background ping keep the TLS connection to the
+        # provider hot between turns. With httpx's default 5s keepalive expiry,
+        # every turn's first request paid a fresh handshake to the remote server
+        # (measured ~0.7s extra per turn against the HF router from us-east).
+        self._http = httpx.Client(
+            timeout=self.request_timeout,
+            limits=httpx.Limits(max_keepalive_connections=5, keepalive_expiry=connection_keepalive_ping_s * 4),
+        )
+        self.client = OpenAI(api_key=api_key, base_url=base_url, http_client=self._http)
         self._extra_body = self._build_extra_body(base_url, disable_thinking, reasoning_effort)
         self.compactor = build_compactor(self._build_compaction_generate_fn()) if compact_history else None
         self.warmup()
+        if base_url and connection_keepalive_ping_s > 0:
+            self._start_connection_keepalive(base_url, api_key, connection_keepalive_ping_s)
+
+    def _start_connection_keepalive(self, base_url: str, api_key: Optional[str], interval_s: float) -> None:
+        """Ping the provider on the shared pool so the TLS connection stays warm.
+
+        ``GET <base_url>/models`` is cheap, authenticated, and rides the same
+        httpx pool as generation requests, so an idle pipeline keeps one hot
+        connection instead of re-handshaking on the next turn. Failures are
+        ignored — the ping is an optimisation, never a liveness signal.
+        """
+        url = f"{base_url.rstrip('/')}/models"
+        headers = {"Authorization": f"Bearer {api_key}"} if api_key else {}
+
+        def ping_loop() -> None:
+            while True:
+                time.sleep(interval_s)
+                try:
+                    self._http.get(url, headers=headers)
+                except Exception:  # noqa: BLE001 — best-effort keep-warm only
+                    pass
+
+        threading.Thread(target=ping_loop, name="llm-conn-keepalive", daemon=True).start()
 
     @staticmethod
     def _is_official_openai(base_url: Optional[str]) -> bool:
