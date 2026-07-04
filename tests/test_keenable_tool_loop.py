@@ -184,9 +184,7 @@ def _drive(handler, responses, *, tools=None, user="What's the weather in Paris?
             usage = (out.input_tokens, out.output_tokens)
         elif isinstance(out, EndOfResponse):
             end = out
-    return SimpleNamespace(
-        text=text, tools_out=tools_out, usage=usage, chat=chat, end=end, completions=completions
-    )
+    return SimpleNamespace(text=text, tools_out=tools_out, usage=usage, chat=chat, end=end, completions=completions)
 
 
 # ── Tests ────────────────────────────────────────────────────────────────────
