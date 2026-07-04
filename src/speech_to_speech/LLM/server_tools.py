@@ -19,6 +19,7 @@ import ipaddress
 import json
 import logging
 import os
+import time
 from datetime import datetime
 from typing import Any
 from urllib.parse import urlsplit
@@ -151,9 +152,9 @@ class KeenableWebTools:
             f"Today's date is {today}. You can access the live web with the web_search and "
             "fetch_page tools; they run on the server and return results to you immediately, "
             "so call them whenever the user asks about news, weather, sports, prices, or any "
-            "fact that may have changed recently. Do not describe your ability to search or ask "
-            "for permission: give a brief acknowledgement like 'Let me check...' and call the "
-            "tool immediately. When answering from web results, stay "
+            "fact that may have changed recently. Call the tool immediately and silently: no "
+            "announcements, no permission-asking, no filler like 'Let me check' — results come "
+            "back fast enough to answer right away. When answering from web results, stay "
             "spoken-friendly: summarize in one or two short sentences, name the source when "
             "useful, and never read URLs or long lists aloud."
         )
@@ -202,7 +203,9 @@ class KeenableWebTools:
             value = arguments.get(key)
             if value and isinstance(value, str):
                 payload[key] = value
+        started = time.perf_counter()
         response = self._client.post(f"/v1/search{self._path_suffix}", json=payload)
+        took_ms = (time.perf_counter() - started) * 1000
         response.raise_for_status()
         results = response.json().get("results") or []
         compact = [
@@ -215,7 +218,7 @@ class KeenableWebTools:
             }
             for r in results[: self.max_results]
         ]
-        logger.info("Keenable web_search(%r) -> %d results", query, len(compact))
+        logger.info("Keenable web_search(%r) -> %d results in %.0f ms", query, len(compact), took_ms)
         return json.dumps({"results": compact}, ensure_ascii=False)
 
     def _fetch_page(self, arguments: dict[str, Any]) -> str:
@@ -226,13 +229,15 @@ class KeenableWebTools:
         if rejection is not None:
             return self._error(rejection)
         params: dict[str, Any] = {"url": url, "max_chars": self.fetch_max_chars}
+        started = time.perf_counter()
         response = self._client.get(f"/v1/fetch{self._path_suffix}", params=params)
         if response.status_code == 404:
             # Not in the index yet — retry live from the source.
             response = self._client.get(f"/v1/fetch{self._path_suffix}", params={**params, "live": True})
+        took_ms = (time.perf_counter() - started) * 1000
         response.raise_for_status()
         data = response.json()
-        logger.info("Keenable fetch_page(%r) -> %d chars", url, len(data.get("content") or ""))
+        logger.info("Keenable fetch_page(%r) -> %d chars in %.0f ms", url, len(data.get("content") or ""), took_ms)
         return json.dumps(
             {
                 "url": data.get("url"),
