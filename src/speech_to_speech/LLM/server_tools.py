@@ -19,6 +19,7 @@ import ipaddress
 import json
 import logging
 import os
+import threading
 import time
 from datetime import datetime
 from typing import Any
@@ -134,11 +135,31 @@ class KeenableWebTools:
             headers["X-API-Key"] = self.api_key
         # Keyless traffic uses the public endpoints (rate-limited free tier).
         self._path_suffix = "" if self.api_key else "/public"
-        self._client = httpx.Client(base_url=base_url, headers=headers, timeout=timeout_s, transport=transport)
+        self._client = httpx.Client(
+            base_url=base_url,
+            headers=headers,
+            timeout=timeout_s,
+            transport=transport,
+            limits=httpx.Limits(max_keepalive_connections=2, keepalive_expiry=120.0),
+        )
         self._handlers = {
             WEB_SEARCH_TOOL.name: self._web_search,
             FETCH_PAGE_TOOL.name: self._fetch_page,
         }
+        # Searches are sporadic in a conversation, so without a keep-warm ping
+        # most of them would pay a fresh TLS handshake (~200ms extra from a
+        # us-east host to Keenable in us-west). Real transport only — tests
+        # inject a MockTransport and must not see ping traffic.
+        if transport is None:
+            threading.Thread(target=self._keepalive_loop, name="keenable-conn-keepalive", daemon=True).start()
+
+    def _keepalive_loop(self, interval_s: float = 25.0) -> None:
+        while True:
+            time.sleep(interval_s)
+            try:
+                self._client.get("/")
+            except Exception:  # noqa: BLE001 — best-effort keep-warm only
+                pass
 
     @property
     def tool_definitions(self) -> list[dict[str, Any]]:
