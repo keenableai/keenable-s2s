@@ -34,9 +34,15 @@ def remove_unspeechable(text: str) -> str:
 # nltk.data.load). Dependency-free and tuned to match nltk's English punkt on the
 # boundaries this pipeline relies on: split on . ! ? … when followed by
 # whitespace, without breaking on decimals ("3.14"), initials ("J. Smith"), or
-# common abbreviations ("Mr.", "e.g."). Trailing text with no terminator is
-# returned as the final element, so streaming callers can keep it buffered.
+# common abbreviations ("Mr.", "e.g."). A closing quote or bracket may ride
+# along with the terminator ('He said "Hi." Then left.'). Trailing text with no
+# terminator is returned as the final element, so streaming callers can keep it
+# buffered.
 _SENTENCE_TERMINATORS = ".!?…"
+
+# Closing punctuation allowed between the terminator and the whitespace break,
+# so quoted/parenthesized sentence ends are still recognized as boundaries.
+_CLOSING_PUNCT = frozenset("\"')]}”’")
 
 _ABBREVIATIONS = frozenset(
     {
@@ -89,23 +95,28 @@ def split_sentences(text: str) -> list[str]:
         run_end = i
         while run_end < n and text[run_end] in _SENTENCE_TERMINATORS:
             run_end += 1
+        # Let closing quotes/brackets ride along with the terminator so
+        # 'He said "Hi." Then left.' still breaks after the quote.
+        boundary_end = run_end
+        while boundary_end < n and text[boundary_end] in _CLOSING_PUNCT:
+            boundary_end += 1
         # A boundary requires end-of-text or trailing whitespace (this alone
         # excludes decimals and mid-token dots like "3.14" / "a.m").
-        if run_end < n and not text[run_end].isspace():
+        if boundary_end < n and not text[boundary_end].isspace():
             i = run_end
             continue
-        next_pos = run_end
+        next_pos = boundary_end
         while next_pos < n and text[next_pos].isspace():
             next_pos += 1
         next_char = text[next_pos] if next_pos < n else ""
         if _is_false_boundary(text, i, next_char):
             i = run_end
             continue
-        segment = text[start:run_end].strip()
+        segment = text[start:boundary_end].strip()
         if segment:
             sentences.append(segment)
-        start = run_end
-        i = run_end
+        start = boundary_end
+        i = boundary_end
     tail = text[start:].strip()
     if tail:
         sentences.append(tail)

@@ -36,6 +36,10 @@ def test_remove_unspeechable_keeps_text_and_drops_emoji() -> None:
         # Repeated terminators and ellipsis.
         ("Wait!! Are you sure?? Yes.", ["Wait!!", "Are you sure??", "Yes."]),
         ("Well... I guess so.", ["Well...", "I guess so."]),
+        # A closing quote/bracket after the terminator still marks a boundary.
+        ('He said "Hi." Then left.', ['He said "Hi."', "Then left."]),
+        ('Wait ("really?") Yes.', ['Wait ("really?")', "Yes."]),
+        ("See the note (below.) Continue now.", ["See the note (below.)", "Continue now."]),
     ],
 )
 def test_split_sentences(text: str, expected: list[str]) -> None:
