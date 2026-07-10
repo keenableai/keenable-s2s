@@ -29,6 +29,89 @@ def remove_unspeechable(text: str) -> str:
     return SPEECHABLE_PATTERN.sub("", text)
 
 
+# Sentence segmentation for streaming TTS. Replaces nltk.sent_tokenize (the nltk
+# dependency was removed to close CVE-2026-54293, a path traversal in
+# nltk.data.load). Dependency-free and tuned to match nltk's English punkt on the
+# boundaries this pipeline relies on: split on . ! ? … when followed by
+# whitespace, without breaking on decimals ("3.14"), initials ("J. Smith"), or
+# common abbreviations ("Mr.", "e.g."). Trailing text with no terminator is
+# returned as the final element, so streaming callers can keep it buffered.
+_SENTENCE_TERMINATORS = ".!?…"
+
+_ABBREVIATIONS = frozenset(
+    {
+        "mr", "mrs", "ms", "dr", "prof", "sr", "jr", "st", "vs", "etc",
+        "inc", "ltd", "co", "corp", "no", "fig", "al", "gen", "rev", "hon",
+        "e.g", "i.e", "a.m", "p.m", "u.s", "u.k",
+    }
+)
+
+_PRECEDING_TOKEN = re.compile(r"[A-Za-z.]+$")
+
+
+def _is_false_boundary(text: str, term_start: int, next_char: str) -> bool:
+    """True when a . ! ? at ``term_start`` is not a real sentence boundary."""
+    # A following lowercase letter is a strong signal we're mid-sentence
+    # (e.g. "e.g. foo", "see fig. 2 below").
+    if next_char and next_char.islower():
+        return True
+    match = _PRECEDING_TOKEN.search(text[:term_start])
+    if not match:
+        return False
+    token = match.group(0)
+    normalized = token.lower().rstrip(".")
+    if not normalized:
+        return False
+    # Single-letter initials ("J. Smith", "U. S.").
+    if len(normalized.replace(".", "")) == 1:
+        return True
+    return normalized in _ABBREVIATIONS
+
+
+def split_sentences(text: str) -> list[str]:
+    """Split ``text`` into sentences for streaming TTS.
+
+    Drop-in replacement for ``nltk.sent_tokenize`` covering the cases this
+    pipeline exercises. Returns stripped, non-empty sentences; any trailing
+    fragment without a terminator is the last element.
+    """
+    if not text or not text.strip():
+        return []
+    sentences: list[str] = []
+    start = 0
+    i = 0
+    n = len(text)
+    while i < n:
+        if text[i] not in _SENTENCE_TERMINATORS:
+            i += 1
+            continue
+        # Consume a run of terminators ("?!", "...").
+        run_end = i
+        while run_end < n and text[run_end] in _SENTENCE_TERMINATORS:
+            run_end += 1
+        # A boundary requires end-of-text or trailing whitespace (this alone
+        # excludes decimals and mid-token dots like "3.14" / "a.m").
+        if run_end < n and not text[run_end].isspace():
+            i = run_end
+            continue
+        next_pos = run_end
+        while next_pos < n and text[next_pos].isspace():
+            next_pos += 1
+        next_char = text[next_pos] if next_pos < n else ""
+        if _is_false_boundary(text, i, next_char):
+            i = run_end
+            continue
+        segment = text[start:run_end].strip()
+        if segment:
+            sentences.append(segment)
+        start = run_end
+        i = run_end
+    tail = text[start:].strip()
+    if tail:
+        sentences.append(tail)
+    return sentences
+
+
 WHISPER_LANGUAGE_TO_LLM_LANGUAGE = {
     "en": "english",
     "fr": "french",

@@ -10,8 +10,7 @@ ENV DEBIAN_FRONTEND=noninteractive \
     PYTHONUNBUFFERED=1 \
     PATH="/app/.venv/bin:${PATH}" \
     HF_HOME=/tmp/hf \
-    TORCH_HOME=/tmp/torch \
-    NLTK_DATA=/app/nltk_data
+    TORCH_HOME=/tmp/torch
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
@@ -26,8 +25,7 @@ RUN uv sync --python /usr/bin/python3 --no-install-project --no-dev
 
 COPY . .
 RUN uv sync --python /usr/bin/python3 --no-dev
-RUN python -c "import nltk; nltk.download('punkt_tab', download_dir='/app/nltk_data'); nltk.download('averaged_perceptron_tagger_eng', download_dir='/app/nltk_data')" \
-    && chmod -R a+rX /app
+RUN chmod -R a+rX /app
 
 EXPOSE 7860
 
