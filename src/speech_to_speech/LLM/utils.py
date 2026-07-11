@@ -46,9 +46,32 @@ _CLOSING_PUNCT = frozenset("\"')]}”’")
 
 _ABBREVIATIONS = frozenset(
     {
-        "mr", "mrs", "ms", "dr", "prof", "sr", "jr", "st", "vs", "etc",
-        "inc", "ltd", "co", "corp", "no", "fig", "al", "gen", "rev", "hon",
-        "e.g", "i.e", "a.m", "p.m", "u.s", "u.k",
+        "mr",
+        "mrs",
+        "ms",
+        "dr",
+        "prof",
+        "sr",
+        "jr",
+        "st",
+        "vs",
+        "etc",
+        "inc",
+        "ltd",
+        "co",
+        "corp",
+        "no",
+        "fig",
+        "al",
+        "gen",
+        "rev",
+        "hon",
+        "e.g",
+        "i.e",
+        "a.m",
+        "p.m",
+        "u.s",
+        "u.k",
     }
 )
 
