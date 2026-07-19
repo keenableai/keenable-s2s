@@ -8,7 +8,6 @@ from collections.abc import Iterator
 from typing import Any, Optional, cast
 
 import httpx
-from nltk import sent_tokenize
 from openai import OpenAI
 from openai.types.realtime.conversation_item import (
     RealtimeConversationItemAssistantMessage,
@@ -33,7 +32,7 @@ from speech_to_speech.LLM.chat import (
 from speech_to_speech.LLM.compaction_prompt import CompactGenerateFn, build_compactor
 from speech_to_speech.LLM.server_tools import KeenableWebTools
 from speech_to_speech.LLM.text_prompt import build_text_system_prompt
-from speech_to_speech.LLM.utils import remove_unspeechable, resolve_auto_language
+from speech_to_speech.LLM.utils import remove_unspeechable, resolve_auto_language, split_sentences
 from speech_to_speech.LLM.voice_prompt import build_voice_system_prompt
 from speech_to_speech.pipeline.cancel_scope import CancelScope
 from speech_to_speech.pipeline.handler_types import LLMIn, LLMOut
@@ -435,7 +434,7 @@ class BaseOpenAICompatibleHandler(BaseHandler[LLMIn, LLMOut], ABC):
                 new_text = remove_unspeechable(event.text)
                 state.clean_text += new_text
                 printable_text += new_text
-                sentences = sent_tokenize(printable_text)
+                sentences = split_sentences(printable_text)
                 if len(sentences) > 1:
                     for s in sentences[:-1]:
                         sentence_batch.append(s)
