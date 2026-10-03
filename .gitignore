@@ -228,6 +228,5 @@ dmypy.json
 .coverage
 cover/
 .tox/
-uv.lock
 # local launcher holding a private API key
 run_cerebras_keenable.sh
