@@ -122,29 +122,27 @@ def _validate_realtime_websocket_support() -> None:
     importlib.import_module("uvicorn.protocols.websockets.websockets_impl")
 
 
-def _validate_darwin_dependency_pins() -> None:
-    expected_versions = {
-        "miniaudio": "1.61",
-        "mlx": "0.31.1",
-        "mlx-audio": "0.4.2",
-        "mlx-lm": "0.31.1",
-        "mlx-metal": "0.31.1",
-        "sounddevice": "0.5.3",
-        "transformers": "5.10.2",
-    }
-    mismatches = []
-    for package_name, expected_version in expected_versions.items():
-        actual_version = metadata.version(package_name)
-        if actual_version != expected_version:
-            mismatches.append(f"{package_name}=={actual_version} (expected {expected_version})")
+def _validate_dependency_pins() -> None:
+    """Check installed versions against the package's own requirements for this platform.
 
-    numpy_version = metadata.version("numpy")
-    numpy_version_parts = tuple(int(part) for part in numpy_version.split(".")[:3])
-    if numpy_version_parts >= (2, 4, 4):
-        mismatches.append(f"numpy=={numpy_version} (expected <2.4.4 on macOS)")
+    Expected versions come from the installed metadata (i.e. pyproject.toml), so a pin
+    bump (e.g. the macOS `==` pins) and this check cannot drift apart.
+    """
+    from packaging.requirements import Requirement
+
+    mismatches = []
+    for raw_requirement in metadata.requires("speech-to-speech") or []:
+        requirement = Requirement(raw_requirement)
+        if requirement.marker is not None and not requirement.marker.evaluate({"extra": ""}):
+            continue
+        if not requirement.specifier:
+            continue
+        actual_version = metadata.version(requirement.name)
+        if not requirement.specifier.contains(actual_version, prereleases=True):
+            mismatches.append(f"{requirement.name}=={actual_version} (expected {requirement.specifier})")
 
     if mismatches:
-        raise RuntimeError("Unexpected macOS dependency versions: " + ", ".join(mismatches))
+        raise RuntimeError(f"Unexpected {sys.platform} dependency versions: " + ", ".join(mismatches))
 
 
 def main() -> None:
@@ -167,8 +165,7 @@ def main() -> None:
         required_modules.extend(["faster_qwen3_tts", "nano_parakeet"])
 
     _require_modules(required_modules)
-    if sys.platform == "darwin":
-        _validate_darwin_dependency_pins()
+    _validate_dependency_pins()
     _run_installed_cli_help()
     _validate_package_defaults()
     _validate_empty_qwen_ref_audio_arg()
