@@ -130,7 +130,7 @@ def _validate_darwin_dependency_pins() -> None:
         "mlx-lm": "0.31.1",
         "mlx-metal": "0.31.1",
         "sounddevice": "0.5.3",
-        "transformers": "5.10.0",
+        "transformers": "5.10.2",
     }
     mismatches = []
     for package_name, expected_version in expected_versions.items():

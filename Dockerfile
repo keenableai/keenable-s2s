@@ -20,11 +20,11 @@ RUN python3 -m pip install --no-cache-dir --break-system-packages uv
 
 WORKDIR /app
 
-COPY pyproject.toml README.md LICENSE MANIFEST.in ./
-RUN uv sync --python /usr/bin/python3 --no-install-project --no-dev
+COPY pyproject.toml uv.lock README.md LICENSE MANIFEST.in ./
+RUN uv sync --locked --python /usr/bin/python3 --no-install-project --no-dev
 
 COPY . .
-RUN uv sync --python /usr/bin/python3 --no-dev
+RUN uv sync --locked --python /usr/bin/python3 --no-dev
 RUN chmod -R a+rX /app
 
 EXPOSE 7860
