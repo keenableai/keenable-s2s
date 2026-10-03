@@ -435,6 +435,8 @@ class ParakeetTDTSTTHandler(BaseSTTHandler):
 
     def _show_progressive_transcription(self, audio_input: np.ndarray) -> str:
         """Run progressive transcription, print to console, and return the text."""
+        if self.streaming_handler is None:
+            return ""
         result = self.streaming_handler.transcribe_incremental(audio_input)
         rich_text = Text()
         if result.fixed_text:
