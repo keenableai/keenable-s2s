@@ -2,7 +2,7 @@ import logging
 from types import SimpleNamespace
 from unittest.mock import MagicMock
 
-import httpx
+import httpx2
 from openai import Stream
 from openai.types.realtime.conversation_item import (
     RealtimeConversationItemAssistantMessage,
@@ -320,7 +320,7 @@ def test_process_read_timeout_ends_response_cleanly():
 
     def make_timeout_stream():
         stream = MagicMock(spec=Stream)
-        stream.__iter__.side_effect = httpx.ReadTimeout("timed out")
+        stream.__iter__.side_effect = httpx2.ReadTimeout("timed out")
         return stream
 
     handler.client = SimpleNamespace(responses=SimpleNamespace(create=lambda **kwargs: make_timeout_stream()))
