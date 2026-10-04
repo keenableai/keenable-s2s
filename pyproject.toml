@@ -48,7 +48,7 @@ dependencies = [
     "nano-parakeet>=0.2.0; platform_system != 'Darwin'",
     "faster-qwen3-tts[ggml]>=0.3.0; platform_system != 'Darwin'",
     "lingua-language-detector>=2.0.2",
-    "miniaudio==1.61; platform_system == 'Darwin'",
+    "miniaudio==1.71; platform_system == 'Darwin'",
     "mlx==0.31.1; platform_system == 'Darwin'",
     "mlx-audio==0.4.2; platform_system == 'Darwin'",
     "mlx-lm==0.31.1; platform_system == 'Darwin'",
