@@ -7,7 +7,7 @@ from abc import ABC, abstractmethod
 from collections.abc import Iterator
 from typing import Any, Optional, cast
 
-import httpx
+import httpx2
 from openai import OpenAI
 from openai.types.realtime.conversation_item import (
     RealtimeConversationItemAssistantMessage,
@@ -165,7 +165,7 @@ class BaseOpenAICompatibleHandler(BaseHandler[LLMIn, LLMOut], ABC):
         self.enable_lang_prompt = enable_lang_prompt
         self.gen_kwargs = dict(gen_kwargs)
         self.request_timeout_s = float(request_timeout_s)
-        self.request_timeout = httpx.Timeout(
+        self.request_timeout = httpx2.Timeout(
             self.request_timeout_s,
             connect=min(10.0, self.request_timeout_s),
         )
@@ -177,9 +177,9 @@ class BaseOpenAICompatibleHandler(BaseHandler[LLMIn, LLMOut], ABC):
         # provider hot between turns. With httpx's default 5s keepalive expiry,
         # every turn's first request paid a fresh handshake to the remote server
         # (measured ~0.7s extra per turn against the HF router from us-east).
-        self._http = httpx.Client(
+        self._http = httpx2.Client(
             timeout=self.request_timeout,
-            limits=httpx.Limits(max_keepalive_connections=5, keepalive_expiry=connection_keepalive_ping_s * 4),
+            limits=httpx2.Limits(max_keepalive_connections=5, keepalive_expiry=connection_keepalive_ping_s * 4),
         )
         self.client = OpenAI(api_key=api_key, base_url=base_url, http_client=self._http)
         self._extra_body = self._build_extra_body(base_url, disable_thinking, reasoning_effort)
@@ -581,7 +581,7 @@ class BaseOpenAICompatibleHandler(BaseHandler[LLMIn, LLMOut], ABC):
                         yield from self._consume_streaming(events, state, turn)
                     else:
                         yield from self._consume_nonstreaming(events, state, turn)
-            except httpx.ReadTimeout:
+            except httpx2.ReadTimeout:
                 logger.warning(
                     "OpenAI API read timed out after %.1fs; ending the current response",
                     self.request_timeout_s,
